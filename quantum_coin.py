@@ -108,7 +108,7 @@ class QuantumCoin:
                 self._buffer = []
                 self._buffer_index = 0
                 return
-
+        # Right Here Casper!!
             qc = QuantumCircuit(1)
             qc.h(0)
             qc.measure_all()

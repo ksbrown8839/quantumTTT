@@ -1,3 +1,11 @@
+"""
+Quantum Tic-Tac-Toe
+Implements Quantum Tic-Tac-Toe game mechanics and a Tkinter GUI.
+
+Usage (CLI):
+    python quantum_ttt.py [--force-aer]
+"""
+    
 
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Dict, Set
