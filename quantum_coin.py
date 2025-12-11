@@ -1,3 +1,7 @@
+# Quantum Tic-Tac-Toe
+# Copyright (c) 2025 Kollin Brown
+# Licensed under the MIT License. See the LICENSE file in the project root for details.
+
 import random
 import threading
 import matplotlib

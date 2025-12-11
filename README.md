@@ -44,4 +44,5 @@ python quantum_ttt.py [--force-aer] [--chaos]
 - Tkinter not found: install your OS’s Tk package (e.g., `sudo apt-get install python3-tk` on Debian/Ubuntu).
 
 ## License
-MIT (if you prefer another license, update this section.)
+
+This project is licensed under the MIT License – see the [LICENSE](./LICENSE) file for details.
