@@ -40,6 +40,7 @@ class QuantumCoin:
         prefill_async: bool = True,
         save_histogram: bool = True,
         force_aer: bool = False,
+        chaos_mode: bool = False,
         **kwargs,
     ):
         if "use_real_hardware" in kwargs:
@@ -54,6 +55,7 @@ class QuantumCoin:
         self.prefill_async = prefill_async
         self.save_histogram = save_histogram
         self.force_aer = force_aer
+        self.chaos_mode = chaos_mode
 
         self.service = None
         self.backend = None
@@ -116,9 +118,7 @@ class QuantumCoin:
                 self._buffer_index = 0
                 return
         # Right Here Casper!!
-            qc = QuantumCircuit(1)
-            qc.h(0)
-            qc.measure_all()
+            qc = self._build_circuit()
 
             print("[QuantumCoin] Original circuit:")
             print(qc)
@@ -155,8 +155,7 @@ class QuantumCoin:
 
             bit_list = []
             for bit_str, cnt in counts.items():
-                b = int(bit_str)
-                bit_list.extend([b] * cnt)
+                bit_list.extend([bit_str] * cnt)
 
             random.shuffle(bit_list)
 
@@ -171,6 +170,32 @@ class QuantumCoin:
             return
         t = threading.Thread(target=self._refill_buffer, daemon=True)
         t.start()
+
+    def _build_circuit(self):
+        """
+        Build the quantum circuit used for sampling. Chaos mode uses a
+        two-qubit entangling circuit with random single-qubit rotations to
+        introduce extra interference while still collapsing to a single bit
+        via parity.
+        """
+        if QuantumCircuit is None:
+            raise RuntimeError("Qiskit QuantumCircuit not available")
+
+        if self.chaos_mode:
+            qc = QuantumCircuit(2)
+            qc.h(0)
+            qc.cx(0, 1)
+            qc.ry(random.uniform(0, 2 * 3.141592653589793), 0)
+            qc.rz(random.uniform(0, 2 * 3.141592653589793), 1)
+            qc.h([0, 1])
+            qc.measure_all()
+            print("[QuantumCoin] Chaos mode circuit enabled.")
+        else:
+            qc = QuantumCircuit(1)
+            qc.h(0)
+            qc.measure_all()
+
+        return qc
 
     def _run_hardware_counts(self, qc_t):
         """Submit to IBM hardware and return counts; may raise on timeout."""
@@ -194,13 +219,13 @@ class QuantumCoin:
         print(f"[QuantumCoin] Aer counts: {counts}")
         return counts
 
-    def _next_bit(self) -> int:
-        """Fetch next bit from buffer, refilling as needed; last resort is classical."""
+    def _next_bit(self) -> str:
+        """Fetch next raw bitstring from buffer, refilling as needed; fallback is classical."""
         if self._buffer_index >= len(self._buffer):
             self._maybe_refill_async()
 
         if self._buffer_index >= len(self._buffer):
-            bit = random.randint(0, 1)
+            bit = str(random.randint(0, 1))
             print(f"[QuantumCoin] Buffer empty, fallback classical bit: {bit}")
             return bit
 
@@ -210,6 +235,16 @@ class QuantumCoin:
         print(f"[QuantumCoin] Quantum buffered bit: {bit} (remaining {remaining})")
         return bit
 
-    def flip(self) -> int:
-        """Public interface: return a single 0/1 coin flip."""
-        return self._next_bit()
+    @staticmethod
+    def _primary_from_raw(bit_str: str) -> int:
+        if len(bit_str) == 1:
+            return int(bit_str)
+        return bit_str.count("1") % 2
+
+    def flip(self, return_bits: bool = False):
+        """Return a single 0/1 coin flip; optionally include raw bitstring."""
+        raw = self._next_bit()
+        primary = self._primary_from_raw(raw)
+        if return_bits:
+            return primary, raw
+        return primary

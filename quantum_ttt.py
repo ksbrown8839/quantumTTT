@@ -3,10 +3,11 @@ Quantum Tic-Tac-Toe
 Implements Quantum Tic-Tac-Toe game mechanics and a Tkinter GUI.
 
 Usage (CLI):
-    python quantum_ttt.py [--force-aer]
+    python quantum_ttt.py [--force-aer] [--chaos]
 """
     
 
+import random
 from dataclasses import dataclass
 from typing import List, Optional, Tuple, Dict, Set
 from quantum_coin import QuantumCoin
@@ -35,6 +36,7 @@ class QuantumTicTacToeLogic:
     def reset(self):
         self.moves: List[Move] = []
         self.collapsed_board: List[Optional[Tuple[str, int]]] = [None] * 9
+        self.special_marks: Dict[int, str] = {}
         self.move_counter = {'X': 0, 'O': 0}
         self.current_player: str = 'X'
         self.mode: str = 'PLAY'
@@ -93,6 +95,11 @@ class QuantumTicTacToeLogic:
         a, b = new_cells
         adj = self.build_adjacency(self.moves)
         return self.bfs_reachable(adj, a, b)
+
+    def add_special_mark(self, cell: int, symbol: str):
+        """Place a one-off special Y marker that blocks moves."""
+        if 0 <= cell < 9:
+            self.special_marks[cell] = symbol
 
     def add_spooky_move(self, cell1: int, cell2: int):
         """Add a spooky move and trigger collapse if a loop forms."""
@@ -237,16 +244,17 @@ class QuantumTicTacToeGUI:
     Tkinter interface for playing Quantum Tic-Tac-Toe, using a Canvas board.
 
     - Click squares to choose spooky pairs.
-    - Collapse phase is unchanged (click one of the two squares).
     - Spooky pairs are connected by colored lines on the canvas.
     """
 
-    def __init__(self, root: tk.Tk, scale: float = UI_SCALE, force_aer: bool = False):
+    def __init__(self, root: tk.Tk, scale: float = UI_SCALE, force_aer: bool = False, chaos_mode: bool = False):
         self.root = root
         self.root.title("Quantum Tic-Tac-Toe")
 
         self.scale = scale
         self.root.tk.call("tk", "scaling", self.scale)
+
+        self.chaos_mode = chaos_mode
 
         self.logic = QuantumTicTacToeLogic()
 
@@ -255,7 +263,8 @@ class QuantumTicTacToeGUI:
             backend_name="ibm_torino",
             aer_backend_name="aer_simulator",
             shots=256,
-            force_aer=force_aer
+            force_aer=force_aer,
+            chaos_mode=chaos_mode,
         )
 
         self.status_var = tk.StringVar()
@@ -407,6 +416,10 @@ class QuantumTicTacToeGUI:
                 cell_texts[i].append(f"{p}({idx})")
                 players_in_cell[i].add(p)
 
+            special = self.logic.special_marks.get(i)
+            if special:
+                cell_texts[i].append(f"{special}")
+
         for m in self.logic.moves:
             label = f"{m.player}{m.index}"
             a, b = m.cells
@@ -436,6 +449,8 @@ class QuantumTicTacToeGUI:
             outline = ""
             outline_width = 0
 
+            special = self.logic.special_marks.get(i)
+
             if cb is not None:
                 p, _ = cb
                 if p == 'X':
@@ -444,6 +459,9 @@ class QuantumTicTacToeGUI:
                 else:
                     bg = self.o_classical_bg
                     fg = self.o_fg
+                font = self.classical_font
+            elif special:
+                fg = "#0a8f3c"
                 font = self.classical_font
             else:
                 if "X" in pset and "O" not in pset:
@@ -517,7 +535,7 @@ class QuantumTicTacToeGUI:
             self.handle_collapse_click(idx)
 
     def handle_play_click(self, idx: int):
-        if self.logic.collapsed_board[idx] is not None:
+        if self.logic.collapsed_board[idx] is not None or self.logic.special_marks.get(idx):
             messagebox.showinfo("Illegal move", "Occupied!")
             return
 
@@ -526,6 +544,9 @@ class QuantumTicTacToeGUI:
             self.update_board_display()
             self.update_status()
         else:
+            if self.logic.special_marks.get(idx):
+                messagebox.showinfo("Illegal move", "That cell is blocked by a green mark.")
+                return
             if idx == self.temp_first_cell:
                 messagebox.showinfo("Illegal move", "Must be different.")
                 return
@@ -558,11 +579,10 @@ class QuantumTicTacToeGUI:
             )
             return
 
-        if self.logic.collapsed_board[idx] is not None:
+        if self.logic.collapsed_board[idx] is not None or self.logic.special_marks.get(idx):
             messagebox.showinfo(
                 "Invalid choice",
-                "This square is already occupied by a collapsed marker. "
-                "Choose the other one."
+                "This square is blocked. Choose the other one."
             )
             return
 
@@ -606,6 +626,72 @@ class QuantumTicTacToeGUI:
                     f"vs {other}'s {o_s}.",
                 )
 
+    def _swap_random_classical_cells(self) -> str:
+        occupied = [i for i, v in enumerate(self.logic.collapsed_board) if v is not None]
+        if len(occupied) < 2:
+            return "Chaos 01: not enough collapsed cells to swap."
+        a, b = random.sample(occupied, 2)
+        self.logic.collapsed_board[a], self.logic.collapsed_board[b] = (
+            self.logic.collapsed_board[b],
+            self.logic.collapsed_board[a],
+        )
+        return f"Chaos 01: swapped classical cells {a+1} and {b+1}."
+
+    def _rotate_random_row(self) -> str:
+        row = random.randint(0, 2)
+        start = row * 3
+        row_vals = self.logic.collapsed_board[start:start + 3]
+        rotated = [row_vals[-1], row_vals[0], row_vals[1]]
+        self.logic.collapsed_board[start:start + 3] = rotated
+        return f"Chaos 10: rotated row {row+1} (shifted right)."
+
+    def _flip_random_classical_cell(self) -> str:
+        occupied = [i for i, v in enumerate(self.logic.collapsed_board) if v is not None]
+        if not occupied:
+            return "Chaos 11: no classical cells to flip."
+        idx = random.choice(occupied)
+        player, move_idx = self.logic.collapsed_board[idx]
+        other = self.logic.other_player(player)
+        self.logic.collapsed_board[idx] = (other, move_idx)
+        return f"Chaos 11: flipped cell {idx+1} to player {other}."
+
+    def _apply_chaos_effect(self, raw_bits: str) -> Optional[str]:
+        if not self.chaos_mode:
+            return None
+        if len(raw_bits) < 2:
+            return "Chaos: not enough measured bits to trigger effect."
+
+        code = raw_bits[-2:]
+        if code == "00":
+            return "Chaos 00: universe is calm."
+        if code == "01":
+            return self._swap_random_classical_cells()
+        if code == "10":
+            return self._rotate_random_row()
+        if code == "11":
+            return self._flip_random_classical_cell()
+        return None
+
+    def _maybe_spawn_special_mark(self, raw_bits: str) -> Optional[str]:
+        """Very small chance to drop a green Y mark using the measured bits."""
+        try:
+            val = int(raw_bits, 2)
+        except ValueError:
+            val = random.randint(0, 1023)
+
+        trigger = (val % 100) == 0  # ~1% chance
+        if not trigger:
+            return None
+
+        symbol = "Y" if (val % 2) == 0 else "W"
+
+        empties = [i for i, v in enumerate(self.logic.collapsed_board) if v is None]
+        target_pool = empties if empties else list(range(9))
+        cell = target_pool[val % len(target_pool)]
+
+        self.logic.add_special_mark(cell, symbol)
+        return f"Chaos gift: green {symbol} appears in cell {cell+1}."
+
     def quantum_collapse_current_move(self):
         """
         Use a real quantum 'coin flip' to choose how the current spooky move
@@ -630,7 +716,7 @@ class QuantumTicTacToeGUI:
         self.root.update_idletasks()
 
         try:
-            bit = self.quantum_coin.flip()
+            bit, raw_bits = self.quantum_coin.flip(return_bits=True)
         except Exception as e:
             messagebox.showerror(
                 "Quantum error",
@@ -654,8 +740,8 @@ class QuantumTicTacToeGUI:
 
         which = "first" if chosen_cell == a else "second"
         self.status_var.set(
-            f"Quantum collapse result: measured {bit}, "
-            f"{mv.player}{mv.index} → {which} square (cell {chosen_cell+1})."
+            f"Quantum collapse result: measured {raw_bits} -> {bit}, "
+            f"{mv.player}{mv.index} -> {which} square (cell {chosen_cell+1})."
         )
         self.root.update_idletasks()
 
@@ -665,8 +751,16 @@ class QuantumTicTacToeGUI:
             self.update_status()
             return
 
+        chaos_msg = self._apply_chaos_effect(raw_bits)
+        gift_msg = self._maybe_spawn_special_mark(raw_bits) if self.chaos_mode else None
+
         self.update_board_display()
-        self.update_status()
+        if chaos_msg:
+            self.status_var.set(chaos_msg)
+        elif gift_msg:
+            self.status_var.set(gift_msg)
+        else:
+            self.update_status()
 
         if self.logic.mode == 'PLAY':
             self.announce_result_if_any()
@@ -711,6 +805,11 @@ if __name__ == "__main__":
         action="store_true",
         help="Skip hardware and use Aer simulator only",
     )
+    parser.add_argument(
+        "--chaos",
+        action="store_true",
+        help="Use an entangling chaos circuit for randomness",
+    )
     args = parser.parse_args()
 
     root = tk.Tk()
@@ -720,7 +819,12 @@ if __name__ == "__main__":
     screen_h = root.winfo_screenheight()
     auto_scale = max(1.0, min(2.5, screen_h / base_height))
 
-    app = QuantumTicTacToeGUI(root, scale=auto_scale, force_aer=args.force_aer)
+    app = QuantumTicTacToeGUI(
+        root,
+        scale=auto_scale,
+        force_aer=args.force_aer,
+        chaos_mode=args.chaos,
+    )
 
     root.protocol("WM_DELETE_WINDOW", app.on_close)
 
