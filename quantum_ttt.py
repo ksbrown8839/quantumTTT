@@ -684,7 +684,7 @@ class QuantumTicTacToeGUI:
         except ValueError:
             val = random.randint(0, 1023)
 
-        trigger = (val % 100) == 0  # ~1% chance
+        trigger = (val % 20) == 0  # ~5% chance
         if not trigger:
             return None
 
