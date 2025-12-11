@@ -548,7 +548,9 @@ class QuantumTicTacToeGUI:
                 messagebox.showinfo("Illegal move", "That cell is blocked by a green mark.")
                 return
             if idx == self.temp_first_cell:
-                messagebox.showinfo("Illegal move", "Must be different.")
+                self.temp_first_cell = None
+                self.update_board_display()
+                self.update_status()
                 return
 
             cell1, cell2 = self.temp_first_cell, idx
