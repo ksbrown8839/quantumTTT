@@ -64,6 +64,13 @@ class QuantumCoin:
         self._buffer_index = 0
         self._fetching = False
 
+        if QiskitRuntimeService is None:
+            print("[QuantumCoin] qiskit-ibm-runtime not installed; hardware disabled.")
+        if Aer is None:
+            print("[QuantumCoin] qiskit-aer not installed; simulator fallback unavailable.")
+        if matplotlib is None or plt is None:
+            print("[QuantumCoin] matplotlib not available; histograms disabled.")
+
         if self.use_hardware:
             try:
                 self.service = QiskitRuntimeService()
