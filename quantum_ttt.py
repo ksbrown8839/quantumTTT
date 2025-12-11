@@ -304,10 +304,12 @@ class QuantumTicTacToeGUI:
         self.default_bg = "#dddddd"
         self.x_classical_bg = "#c9daf8"
         self.o_classical_bg = "#f4cccc"
+        self.special_bg = "#d9ead3"
 
         self.x_fg = "#0b5394"
         self.o_fg = "#990000"
         self.mixed_fg = "#674ea7"
+        self.special_fg = "#0a8f3c"
 
         self.classical_font = ("Arial", int(12 * self.scale), "bold")
         self.spooky_font = ("Arial", int(10 * self.scale))
@@ -461,7 +463,8 @@ class QuantumTicTacToeGUI:
                     fg = self.o_fg
                 font = self.classical_font
             elif special:
-                fg = "#0a8f3c"
+                bg = self.special_bg
+                fg = self.special_fg
                 font = self.classical_font
             else:
                 if "X" in pset and "O" not in pset:
